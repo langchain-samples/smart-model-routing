@@ -1,0 +1,42 @@
+[project]
+name = "financial-services-routing"
+version = "0.1.0"
+description = "Testing NVIDIA NeMo Switchyard for LLM model routing on a wealth-management agent workload."
+readme = "README.md"
+# Python 3.12+ is required by the Switchyard middleware path.
+requires-python = ">=3.12"
+dependencies = [
+    # Core notebook runtime
+    "jupyterlab>=4.0",
+    "python-dotenv>=1.0",
+    "requests>=2.31",
+    # Deep Agents + LangChain (middleware path requires deepagents>=0.7.4)
+    "deepagents>=0.7.4",
+    "langchain>=0.3",
+    "langchain-core>=0.3",
+    "langchain-openai>=0.2",
+    "langchain-anthropic>=0.3",
+    "langchain-nvidia-ai-endpoints>=0.3",
+]
+
+# NOTE: two pieces are NOT installed by uv and must be set up separately.
+#
+# 1. Switchyard middleware (Path B) is not on PyPI — install from source:
+#      git clone https://github.com/NVIDIA-NeMo/Switchyard.git
+#      uv pip install -e ./Switchyard
+#      git clone https://github.com/langchain-ai/langchain-nvidia.git
+#      uv pip install -e "./langchain-nvidia/libs/switchyard[openrouter]"
+#
+# 2. Switchyard server (Path A) is a Rust binary — needs Rust + Cargo:
+#      cargo install --locked switchyard-server
+
+# This is an application/workspace, not a distributable library — the notebook adds
+# `src/` to sys.path rather than importing an installed package. Tell uv not to build it.
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = [
+    "nbformat>=5.10",
+    "nbconvert>=7.16",
+]

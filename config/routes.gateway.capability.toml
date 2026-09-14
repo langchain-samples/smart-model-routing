@@ -1,0 +1,55 @@
+# Switchyard SERVER config — CAPABILITY mode, all 3 targets through the LLM Gateway.
+#
+# Use this when you want CONTENT-BASED routing: the classifier reads each request,
+# estimates p_solve (probability the WEAK model can complete THIS task), and routes to
+# the STRONG model when p_solve falls below the threshold. No tools required — a hard
+# question routes up on its own, unlike stage_router (needs tool signals) or escalation
+# mode (needs repeated bad turns before it escalates).
+#
+# This is the config to demonstrate "low cost, high complexity routes to a bigger model".
+#
+# Run:
+#   switchyard-server --config config/routes.gateway.capability.toml --dry-run
+#   switchyard-server --config config/routes.gateway.capability.toml --host 127.0.0.1 --port 4000
+#
+# Then send requests with model="switchyard" to http://127.0.0.1:4000/v1/chat/completions
+
+schema_version = 1
+
+[llm_clients.gateway_openai]
+format = "openai_chat"
+base_url = "https://gateway.smith.langchain.com/v1"
+api_key_env = "LANGSMITH_API_KEY_GATEWAY"
+
+# --- Targets: weak / strong / classifier(judge), all via the Gateway ---
+
+[targets.weak]
+id = "openai/gpt-5.6-luna"
+llm_client = "gateway_openai"
+
+[targets.strong]
+id = "openai/gpt-5.6-terra"
+llm_client = "gateway_openai"
+
+[targets.classifier]
+# The judge that estimates p_solve. A separate, small model.
+id = "openai/gpt-5.6-sol"
+llm_client = "gateway_openai"
+
+# --- Route: LLM classifier in CAPABILITY mode (content-based, decides up front) ---
+
+[routes.switchyard]
+id = "switchyard"
+type = "llm_classifier"
+mode = "capability"
+classifier_target = "classifier"
+strong_target = "strong"
+weak_target = "weak"
+
+# Route to weak only when p_solve >= threshold; otherwise route to strong.
+# RAISE base_threshold to send MORE traffic to the strong model (stricter bar for weak).
+base_threshold = 0.5
+threshold_step = 0.1        # harder capability boundaries add this per step
+
+# The judge (sol) is a reasoning model; give it room for reasoning + the JSON verdict.
+max_output_tokens = 4096

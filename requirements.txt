@@ -1,0 +1,20 @@
+# Core notebook runtime
+jupyterlab>=4.0
+python-dotenv>=1.0
+
+# Deep Agents + LangChain (middleware path requires deepagents>=0.7.4, Python 3.12+)
+deepagents>=0.7.4
+langchain>=0.3
+langchain-core>=0.3
+langchain-openai>=0.2
+langchain-anthropic>=0.3
+langchain-nvidia-ai-endpoints>=0.3
+
+# NOTE: the Switchyard middleware is NOT on PyPI. Install it from source per the notebook:
+#   git clone https://github.com/NVIDIA-NeMo/Switchyard.git
+#   pip install -e ./Switchyard
+#   git clone https://github.com/langchain-ai/langchain-nvidia.git
+#   pip install -e "./langchain-nvidia/libs/switchyard[openrouter]"
+#
+# The server path additionally needs Rust + Cargo:
+#   cargo install --locked switchyard-server

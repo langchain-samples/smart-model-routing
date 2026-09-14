@@ -1,0 +1,60 @@
+# Switchyard SERVER config — escalation mode.
+# Reproduces the LangChain benchmark's headline setup:
+#   - every turn starts on the WEAK model
+#   - a JUDGE model votes on each completed weak-tier turn
+#   - `confirmations` consecutive negative verdicts -> task moves to the STRONG
+#     model for the rest of the session (one-way door)
+#
+# Run:
+#   cargo install --locked switchyard-server
+#   switchyard-server --config config/routes.toml --dry-run
+#   switchyard-server --config config/routes.toml --host 127.0.0.1 --port 4000
+#
+# Then point your agent's base_url at http://127.0.0.1:4000
+#
+# Swap the model IDs / providers below for your desk's approved weak/strong/judge trio.
+# Keep the weak<->strong price gap LOPSIDED or the cost formula won't clear (see README).
+
+schema_version = 1
+
+[llm_clients.nvidia]
+format = "openai_chat"
+base_url = "https://integrate.api.nvidia.com/v1"
+api_key_env = "NVIDIA_API_KEY"
+
+[llm_clients.anthropic]
+format = "anthropic_messages"
+base_url = "https://api.anthropic.com"
+api_key_env = "ANTHROPIC_API_KEY"
+
+[llm_clients.gemini]
+format = "openai_chat"
+base_url = "https://generativelanguage.googleapis.com/v1beta/openai"
+api_key_env = "GOOGLE_API_KEY"
+
+# --- Targets: weak / strong / judge ---
+
+[targets.weak]
+id = "nvidia/nemotron-3.5-lightning-30b-a3b"
+llm_client = "nvidia"
+
+[targets.strong]
+id = "claude-opus-4-8"
+llm_client = "anthropic"
+
+[targets.judge]
+id = "gemini-3.1-flash-lite"
+llm_client = "gemini"
+
+# --- Route: LLM classifier in escalation mode ---
+
+[routes.switchyard]
+id = "switchyard"
+type = "llm_classifier"
+mode = "escalation"
+weak_target = "weak"
+strong_target = "strong"
+classifier_target = "judge"
+
+[routes.switchyard.escalation]
+confirmations = 2      # strikes before switching to the strong model

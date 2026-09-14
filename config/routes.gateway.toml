@@ -1,0 +1,72 @@
+# Switchyard SERVER config — escalation mode, with all 3 targets routed through
+# LangChain's LLM Gateway.
+#
+# ARCHITECTURE: two layers.
+#   Switchyard  = the ROUTER (picks weak / strong / judge per turn)
+#   LLM Gateway = the EXECUTION + GOVERNANCE layer (makes the actual call, applies
+#                 spend / rate-limit / PII policy, and traces every call in LangSmith)
+#
+# So every upstream call Switchyard makes goes to the Gateway instead of directly to
+# the provider. You get routing AND per-call governance + tracing.
+#
+# Prerequisites (one-time, done by a workspace admin in the LangSmith UI):
+#   1. Enable LLM Gateway for the workspace.
+#   2. Add Provider Secrets for Anthropic, Google (Gemini), and your Nemotron endpoint
+#      (or use Gateway Credits where available).
+#   3. Grant your workspace-scoped LangSmith API key access.
+# See: https://docs.langchain.com/langsmith/llm-gateway-admin-setup
+#
+# Then every llm_client below points at the SAME Gateway base_url and authenticates
+# with the SAME LangSmith key. No provider keys live here.
+#
+# Run:
+#   switchyard-server --config config/routes.gateway.toml --dry-run
+#   switchyard-server --config config/routes.gateway.toml --host 127.0.0.1 --port 4000
+
+schema_version = 1
+
+# --- One LLM client per API FORMAT, all pointed at the Gateway ---
+# The Gateway exposes OpenAI Chat (/v1/chat/completions) and Anthropic Messages
+# (/v1/messages). Pick the format per client; the Gateway translates as needed and
+# the model ID (provider-prefixed) selects the upstream route.
+
+[llm_clients.gateway_openai]
+format = "openai_chat"
+base_url = "https://gateway.smith.langchain.com/v1"
+api_key_env = "LANGSMITH_API_KEY_GATEWAY"
+
+[llm_clients.gateway_anthropic]
+format = "anthropic_messages"
+base_url = "https://gateway.smith.langchain.com/v1"
+api_key_env = "LANGSMITH_API_KEY_GATEWAY"
+
+# --- Targets: weak / strong / judge, all via the Gateway ---
+# Model IDs are provider-prefixed Gateway IDs. Swap for your approved trio / real slugs.
+
+[targets.weak]
+# Lighter tier — handles the easy majority of turns.
+id = "openai/gpt-5.6-luna"
+llm_client = "gateway_openai"
+
+[targets.strong]
+# Frontier tier — tasks escalate here after the judge votes "off track" twice.
+id = "openai/gpt-5.6-terra"
+llm_client = "gateway_openai"
+
+[targets.judge]
+# Separate model from weak/strong so judge calls are distinguishable in traces.
+id = "openai/gpt-5.6-sol"
+llm_client = "gateway_openai"
+
+# --- Route: LLM classifier in escalation mode (unchanged from the direct config) ---
+
+[routes.switchyard]
+id = "switchyard"
+type = "llm_classifier"
+mode = "escalation"
+weak_target = "weak"
+strong_target = "strong"
+classifier_target = "judge"
+
+[routes.switchyard.escalation]
+confirmations = 2      # strikes before switching to the strong model
